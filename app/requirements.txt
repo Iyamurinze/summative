@@ -1,8 +1,13 @@
 # Used by Streamlit Community Cloud to run app/streamlit_app.py.
 # CPU-only torch wheel index keeps the install small/fast on the free tier (no GPU there anyway).
+# NOTE: do not pin transformers/torch to old versions (e.g. to work around an old local
+# machine's constraints) — that forces an old `tokenizers` release with no prebuilt wheel
+# for Streamlit Cloud's Python version, which fails to build from source. Let these float
+# to recent versions; a runtime.txt at the repo root pins Python to a version with known
+# wheel availability.
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch
 numpy<2
-transformers==4.44.2
-huggingface_hub>=0.23.2,<1.0
-streamlit>=1.30.0
+transformers
+huggingface_hub
+streamlit
