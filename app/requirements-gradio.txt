@@ -1,0 +1,8 @@
+# Optional: only needed if running the Gradio version (app/app.py) locally instead of
+# the deployed Streamlit app. Kept separate from requirements.txt because gradio and
+# streamlit pin conflicting versions of shared dependencies (pydantic/fastapi), which
+# broke the Streamlit Cloud build when both were installed together.
+gradio==4.44.1
+transformers==4.44.2
+huggingface_hub>=0.23.2,<1.0
+torch

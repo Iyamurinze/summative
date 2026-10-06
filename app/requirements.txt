@@ -1,5 +1,8 @@
-gradio==4.44.1
-streamlit>=1.30.0
+# Used by Streamlit Community Cloud to run app/streamlit_app.py.
+# CPU-only torch wheel index keeps the install small/fast on the free tier (no GPU there anyway).
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+numpy<2
 transformers==4.44.2
 huggingface_hub>=0.23.2,<1.0
-torch>=2.0.0
+streamlit>=1.30.0
