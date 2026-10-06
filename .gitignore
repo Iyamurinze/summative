@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+.DS_Store
+
+# trained model artifacts (too large for git; pushed to Hugging Face Hub instead)
+afroxlmr-hausa-sentiment/
+afroxlmr-hausa-sentiment-final/
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
