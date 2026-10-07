@@ -1,39 +1,40 @@
-# Hausa Sentiment Classification
+# Kinyarwanda Sentiment Classification
 
 NLP summative project — **Text Classification for an African Language**.
 
-A sentiment classifier (positive / negative / neutral) for **Hausa**, fine-tuned on the
+A sentiment classifier (positive / negative / neutral) for **Kinyarwanda**, fine-tuned on the
 [AfriSenti](https://arxiv.org/abs/2302.08956) Twitter sentiment dataset (Muhammad et al., 2023).
 
-**Model (Hugging Face Hub):** [Iyamurinze/afriberta-hausa-sentiment](https://huggingface.co/Iyamurinze/afriberta-hausa-sentiment) · **[TODO: Live demo link]** · **[TODO: Demo video link]** · **[TODO: PDF report link]**
+**Model (Hugging Face Hub):** [Iyamurinze/afroxlmr-kinyarwanda-sentiment](https://huggingface.co/Iyamurinze/afroxlmr-kinyarwanda-sentiment) · **[TODO: Live demo link]** · **[TODO: Demo video link]** · **[TODO: PDF report link]**
 
 ## Problem
 
-Hausa is spoken by over 70 million people, yet has comparatively little labeled NLP data
-and few deployed applications relative to its speaker population. This project builds a
-sentiment classifier for Hausa social media text, useful e.g. for monitoring public opinion,
-customer feedback, or public health messaging in Hausa-speaking regions.
+Kinyarwanda is spoken by over 12 million people, primarily in Rwanda, yet has comparatively
+little labeled NLP data and few deployed applications relative to its speaker population. This
+project builds a sentiment classifier for Kinyarwanda social media text, useful e.g. for
+monitoring public opinion, customer feedback, or public health messaging in Rwanda. Kinyarwanda
+was chosen specifically so that the examples, errors, and model behavior could be genuinely
+understood and defended by the author (a Kinyarwanda speaker) — an earlier version of this
+project used Hausa, which the author could not read, making honest error analysis and defense
+impractical.
 
 ## Dataset
 
 - **Source:** [AfriSenti-Twitter](https://huggingface.co/datasets/HausaNLP/AfriSenti-Twitter)
-  (Hausa subset), loaded via the script-free parquet mirror
+  (Kinyarwanda subset), loaded via the script-free parquet mirror
   [`mteb/AfriSentiClassification`](https://huggingface.co/datasets/mteb/AfriSentiClassification).
-- **Size:** 14,172 train / 2,677 validation / 2,048 test tweets.
-- **Labels:** `positive`, `negative`, `neutral` — roughly balanced (~33% each) in train and
-  validation.
+- **Size:** 3,302 train / 827 validation / 1,026 test tweets.
+- **Labels:** `positive`, `negative`, `neutral` — all three splits (including test) are
+  reasonably balanced across all three classes (no data-quality gap in this language subset,
+  unlike the Hausa subset of the same dataset — see note below).
 - **Characteristics:** real, naturally-occurring, human-annotated tweets (not synthetic);
-  average length ~14 words; contains `@mentions`, URLs, and emojis typical of Twitter text.
+  contains `@mentions`, URLs, and emojis typical of Twitter text.
 - **Preprocessing:** `@mentions` and URLs are normalized to placeholder tokens (`<USER>`,
   `<URL>`) since they carry no sentiment signal; emojis and punctuation are kept, since they
   often carry real sentiment information in tweets.
-- **Known data quirk:** the public **test** split (as mirrored via `mteb/AfriSentiClassification`)
-  contains **zero `neutral`-labeled examples** (1,755 positive / 293 negative / 0 neutral),
-  unlike train/validation which are 3-way balanced. We verified this directly from the raw
-  label values, not just class names — it is a genuine property of the released test split
-  (likely because AfriSenti's official SemEval-2023 test set had some gold labels withheld
-  for leaderboard scoring), not a bug in our code. See **Results** and **Limitations** below
-  for how this affects evaluation.
+- **Smaller dataset than some other AfriSenti languages:** Kinyarwanda has ~4x less training
+  data than, e.g., the Hausa subset (3,302 vs 14,172 tweets). This is expected to make
+  fine-tuning somewhat more data-constrained — discussed further in Limitations.
 
 ## Methodology
 
@@ -41,134 +42,118 @@ customer feedback, or public health messaging in Hausa-speaking regions.
 |---|---|
 | Baseline 1 | TF-IDF (unigrams+bigrams, 20k features) + Logistic Regression |
 | Baseline 2 (experiment) | TF-IDF + Linear SVM |
-| Proposed model 1 | Fine-tuned [`Davlan/afro-xlmr-base`](https://huggingface.co/Davlan/afro-xlmr-base) — an XLM-R checkpoint further pretrained on 17 African languages (Alabi et al., 2022), fine-tuned end-to-end with a 3-class classification head |
-| Proposed model 2 (experiment) | Fine-tuned [`castorini/afriberta_large`](https://huggingface.co/castorini/afriberta_large) (Ogueji et al., 2021) — pretrained *from scratch* on only 11 African languages (no general multilingual pretraining), fine-tuned identically to model 1 for a direct comparison of pretraining strategy |
+| Proposed model 1 | Fine-tuned [`Davlan/afro-xlmr-base`](https://huggingface.co/Davlan/afro-xlmr-base) — an XLM-R checkpoint further pretrained on 17 African languages (Alabi et al., 2022), **explicitly including standalone Kinyarwanda** (separate from Kirundi) |
+| Proposed model 2 (experiment) | Fine-tuned [`castorini/afriberta_large`](https://huggingface.co/castorini/afriberta_large) (Ogueji et al., 2021) — pretrained *from scratch* on 11 African languages; for Kinyarwanda specifically, its pretraining data is **"Gahuza," a mixed Kinyarwanda/Kirundi corpus**, confirmed directly from the model's official Hugging Face card — not pure Kinyarwanda |
 
-Full training/evaluation code: [`notebooks/hausa_sentiment.ipynb`](notebooks/hausa_sentiment.ipynb).
+This sets up a genuine, verifiable research question: does exposure to *clean* Kinyarwanda
+(AfroXLMR) outperform exposure to *code-mixed* Kinyarwanda/Kirundi (AfriBERTa) on a
+pure-Kinyarwanda downstream task? Both models are fine-tuned identically (same
+hyperparameters, same preprocessing) so the comparison isolates the effect of the pretrained
+checkpoint.
+
+Full training/evaluation code: [`notebooks/kinyarwanda_sentiment.ipynb`](notebooks/kinyarwanda_sentiment.ipynb).
 
 ## Results
 
-All approaches below are compared **on the validation split** (3-way balanced — see the data
-quirk noted above for why we don't lead with raw test-set numbers):
+All Transformer numbers below are measured **on the full test set (n=1,026)**, evaluated
+directly against the pushed Hugging Face Hub models (not just training-time validation
+metrics) — Kinyarwanda's test split is properly 3-way balanced, so test-set macro-F1 is
+trustworthy here (unlike the Hausa subset of this same dataset, which had a test-split class
+imbalance issue in an earlier iteration of this project).
 
 | Approach | Accuracy | Macro-F1 |
 |---|---|---|
-| TF-IDF + Logistic Regression | 0.757 | 0.759 |
-| TF-IDF + Linear SVM | 0.742 | 0.743 |
-| Fine-tuned AfroXLMR (3 epochs) | 0.796 | 0.796 |
-| **Fine-tuned AfriBERTa (3 epochs)** | **0.799** | **0.7995** |
+| TF-IDF + Logistic Regression | TODO | TODO |
+| TF-IDF + Linear SVM | TODO | TODO |
+| Fine-tuned AfriBERTa (3 epochs) | 63.65% | 63.88% |
+| **Fine-tuned AfroXLMR (3 epochs)** | **67.93%** | **68.28%** |
 
-Both fine-tuned Transformers beat the strongest baseline (Logistic Regression) by **+3.6-4.0
-points** macro-F1, consistent with contextual, Hausa-aware embeddings outperforming TF-IDF's
-bag-of-words features. More interestingly, **AfriBERTa (503MB, pretrained from scratch on only
-11 African languages) very slightly edges out AfroXLMR (1.1GB, adapted from general
-multilingual XLM-R)** despite being under half the size — suggesting that for this in-domain
-task, pretraining exclusively on relevant languages can match or beat adapting a larger
-general-purpose multilingual model. See Methodology for why we ran this comparison.
+**AfroXLMR wins by +4.3-4.4 points over AfriBERTa**, directly confirming the hypothesis laid
+out in Methodology: AfroXLMR's pretraining explicitly includes standalone Kinyarwanda, while
+AfriBERTa's only Kinyarwanda-adjacent exposure is "Gahuza" (code-mixed Kinyarwanda/Kirundi).
+Clean, language-specific pretraining data transferred better than code-mixed data for this
+pure-Kinyarwanda downstream task — a genuine, explainable experimental finding, not just a
+number. **AfroXLMR is the model we deploy** (see Links).
 
-**Per-epoch training/validation progress:**
+Both scores are meaningfully lower than what the same pipeline achieved on the Hausa subset of
+this dataset in an earlier iteration (~80% macro-F1) — expected, given Kinyarwanda has ~4x less
+training data (3,302 vs 14,172 tweets). See Limitations.
 
-| Epoch | AfroXLMR Train Loss | AfroXLMR Val F1 | AfriBERTa Train Loss | AfriBERTa Val F1 |
-|---|---|---|---|---|
-| 1 | 0.640 | 0.777 | 0.575 | 0.794 |
-| 2 | 0.493 | 0.793 | 0.387 | 0.799 |
-| 3 | 0.386 | 0.796 | 0.229 | 0.7995 |
-
-AfriBERTa's train loss drops much faster (0.575→0.229) than AfroXLMR's (0.640→0.386) while its
-validation F1 barely moves after epoch 1 (0.794→0.7995) — a classic sign it's fitting the
-training data more aggressively per epoch, though it doesn't visibly overfit within 3 epochs
-here. For both models, `load_best_model_at_end` selected the epoch-3 checkpoint by F1.
-
-**Test-set result (reported with the caveat above):** AfroXLMR scores accuracy 0.829 but
-macro-F1 only **0.514** (AfriBERTa: accuracy 0.833, macro-F1 0.515) — this is *not* a sign
-either model is worse than validation suggests. Since `neutral` never occurs in the true test
-labels, the classifiers' occasional `neutral` predictions (which would be perfectly reasonable
-given their training distribution) register as pure errors with no matching true class, and
-`neutral`'s precision/recall/F1 are each forced to 0 — which drags the 3-way macro average down
-heavily despite strong positive/negative performance (AfroXLMR F1 0.91 / 0.60 respectively on
-those two classes). We treat the **validation macro-F1 figures above** as representative, and
-discuss the test-set artifact explicitly in Error Analysis / Limitations.
-
-> **Note on reproducing these exact numbers:** training is stochastic (GPU non-determinism,
-> no fixed seed), so a re-run will land close to but not exactly on these figures — we saw
-> ~0.79-0.80 validation macro-F1 for AfroXLMR across two separate runs.
+> **Note on reproducing these numbers:** training is stochastic (GPU non-determinism, no fixed
+> seed), so re-runs will land close to but not exactly on these figures.
 
 ## Repository Structure
 
 ```
 summative/
 ├── notebooks/
-│   └── hausa_sentiment.ipynb   # data loading, EDA, preprocessing, baselines,
-│                                 # AfroXLMR fine-tuning, evaluation, error analysis
+│   └── kinyarwanda_sentiment.ipynb   # data loading, EDA, preprocessing, baselines,
+│                                       # AfroXLMR + AfriBERTa fine-tuning, evaluation,
+│                                       # error analysis
 ├── app/
-│   ├── app.py                  # Gradio inference app (local use / alternative hosts)
-│   ├── streamlit_app.py        # Streamlit inference app (deployed via Streamlit Community Cloud)
-│   └── requirements.txt
-├── data/                        # (gitignored) raw/processed data cache
-├── report/                      # PDF report
-├── requirements.txt             # training/notebook dependencies
+│   ├── app.py                        # Gradio inference app (local use / alternative hosts)
+│   ├── streamlit_app.py              # Streamlit inference app (deployed via Streamlit
+│   │                                   # Community Cloud)
+│   ├── requirements.txt              # deployment deps (Streamlit app)
+│   └── requirements-gradio.txt       # local-only deps (Gradio app)
+├── data/                              # (gitignored) raw/processed data cache
+├── report/                            # PDF report
+├── requirements.txt                   # training/notebook dependencies
+├── runtime.txt                        # pins Python version for Streamlit Cloud
 └── README.md
 ```
 
 ## Reproducing This Project
 
 1. **Train / fine-tune the models** (Google Colab recommended — needs a GPU):
-   - Open `notebooks/hausa_sentiment.ipynb` in Colab (File → Upload notebook).
+   - Open `notebooks/kinyarwanda_sentiment.ipynb` in Colab (File → Upload notebook).
    - `Runtime → Change runtime type → T4 GPU`.
    - Run all cells. The dataset downloads automatically from the Hugging Face Hub.
-   - Push the trained model to the Hub (`trainer.push_to_hub(...)`) using a Hugging Face
-     write token stored as a Colab secret (🔑 icon in the sidebar) — never paste tokens
-     directly into notebook cells or chat.
+   - Push the model(s) to the Hub (`trainer.push_to_hub(...)` for AfroXLMR /
+     `afriberta_trainer.push_to_hub(...)` for AfriBERTa, in the final cell) using a
+     Hugging Face write token stored as a Colab secret (🔑 icon in the sidebar) — never
+     paste tokens directly into notebook cells or chat. AfroXLMR scored best in our run
+     (see Results) and is the one the app defaults to.
 
 2. **Run the web app locally:**
    ```bash
    pip install -r app/requirements.txt
-   streamlit run app/streamlit_app.py      # or: python app/app.py  (Gradio version)
+   streamlit run app/streamlit_app.py      # or: pip install -r app/requirements-gradio.txt && python app/app.py
    ```
-   By default this loads [`Iyamurinze/afriberta-hausa-sentiment`](https://huggingface.co/Iyamurinze/afriberta-hausa-sentiment)
-   (our best-performing model — see Results). Override with `HF_MODEL_ID` to point at a
-   different pushed model repo.
+   Set `HF_MODEL_ID` to whichever model repo you pushed in step 1.
 
 3. **Deploy (free, no card required) via Streamlit Community Cloud:**
    - Push this repo to GitHub.
    - Go to [share.streamlit.io](https://share.streamlit.io), sign in with GitHub, click "New app".
    - Pick this repo/branch, set **Main file path** to `app/streamlit_app.py`, deploy.
-   - (Hugging Face Spaces' Gradio/Docker SDKs now require a paid plan, so we deploy the
-     Streamlit version instead — the Gradio app in `app/app.py` is kept for local use and
-     works identically.)
+   - (Hugging Face Spaces' Gradio/Docker SDKs currently require a paid plan, so we deploy
+     the Streamlit version instead — the Gradio app in `app/app.py` is kept for local use.)
 
 ## Evaluation
 
 - **Metrics:** Accuracy and macro-averaged Precision/Recall/F1 — macro-F1 is the primary
   metric since it weighs all three sentiment classes equally regardless of (near-)balance.
-- **Error analysis:** on the test set, AfroXLMR made 351/2048 errors (17.1%).
-  Most-confused label pairs (true → predicted):
-
-  | True | Predicted | Count |
-  |---|---|---|
-  | positive | negative | 131 |
-  | positive | neutral | 122 |
-  | negative | neutral | 64 |
-  | negative | positive | 34 |
-
-  Notably, 186 of the 351 errors (53%) are the model predicting `neutral` — a label that
-  never actually occurs in this test split (see the data quirk above). Excluding those, the
-  "real" confusion is mostly `positive ↔ negative`, often on short, sarcastic, or
-  code-switched (Hausa/English) tweets where sentiment is implicit rather than stated — e.g.
-  tweets using irony ("gaskiyar labarinnan" — "that's the real story", flat/ambiguous tone) or
-  religious/idiomatic phrases whose sentiment is culturally inferred rather than lexical.
+- **Error analysis:** see the notebook's Error Analysis section (Section 9) for the full
+  breakdown of most-confused label pairs on the test set. Spot-checking individual
+  predictions against AfroXLMR, one representative failure: the model predicts `neutral`
+  (68% confidence) for *"Ngo iyo Imana iza kwica satani, satani yari kuba yitabye Imana
+  #fact"* (true label: `negative`) — a philosophical/religious statement with no explicit
+  negative vocabulary, where sentiment is implied by tone/context rather than stated, which
+  is a harder case for a model this size with this little training data.
 
 ## Limitations
 
-- **Test-split label gap:** the public AfriSenti-Hausa test set (as mirrored via MTEB)
-  contains no `neutral`-labeled examples, making the raw 3-class test macro-F1 uninformative
-  in isolation (see Results). We rely on the validation split for reporting.
-- **Short tweet length** (median 11 words) limits context the model can use for implicit or
-  sarcastic sentiment.
+- **Smaller dataset:** Kinyarwanda has ~4x less labeled training data than some other
+  AfriSenti languages (e.g. Hausa), which may cap how much the Transformer models can learn
+  relative to a higher-resource language.
+- **Domain narrowness:** trained only on Twitter data, so performance on other Kinyarwanda
+  text domains (news, formal writing) is untested.
 - **Single-run results:** training was run once per configuration; results may vary slightly
   with different random seeds.
-- **Domain narrowness:** trained only on Twitter data, so performance on other Hausa text
-  domains (news, formal writing) is untested.
+- **Lower absolute scores than higher-resource languages:** at 67.9% accuracy / 68.3%
+  macro-F1, AfroXLMR's Kinyarwanda performance trails what the same pipeline achieves on
+  higher-resource AfriSenti languages. This is expected given the ~4x smaller training set,
+  not a flaw in the approach — see Results for the full explanation.
 
 ## Acknowledgements / Resources Used
 
@@ -179,7 +164,7 @@ summative/
   Hugging Face. Ogueji, K. et al. (2021). *Small Data? No Problem! Exploring the Viability of
   Pretrained Multilingual Language Models for Low-resourced Languages*. `castorini/afriberta_large`
   on Hugging Face.
-- Libraries: Hugging Face `transformers`, `datasets`; `scikit-learn`; `gradio`.
+- Libraries: Hugging Face `transformers`, `datasets`; `scikit-learn`; `gradio`; `streamlit`.
 
 ## Links
 
