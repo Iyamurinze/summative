@@ -55,20 +55,34 @@ Full training/evaluation code: [`notebooks/kinyarwanda_sentiment.ipynb`](noteboo
 
 ## Results
 
-All Transformer numbers below are measured **on the full test set (n=1,026)**, evaluated
-directly against the pushed Hugging Face Hub models (not just training-time validation
-metrics) — Kinyarwanda's test split is properly 3-way balanced, so test-set macro-F1 is
-trustworthy here (unlike the Hausa subset of this same dataset, which had a test-split class
-imbalance issue in an earlier iteration of this project).
+Baselines (TF-IDF + classical ML) are measured on the **validation split**; fine-tuned
+Transformers are measured on the full **test set** (n=1,026) by evaluating the pushed Hugging
+Face Hub models directly — Kinyarwanda's test split is properly 3-way balanced, so test-set
+macro-F1 is trustworthy here (unlike the Hausa subset of this same dataset, which had a
+test-split class imbalance issue in an earlier iteration of this project). The two splits are
+similar in size and class balance, so the comparison below is still meaningful even though the
+exact split differs between baseline and Transformer rows.
 
 | Approach | Accuracy | Macro-F1 |
 |---|---|---|
-| TF-IDF + Logistic Regression | TODO | TODO |
-| TF-IDF + Linear SVM | TODO | TODO |
-| Fine-tuned AfriBERTa (3 epochs) | 63.65% | 63.88% |
-| **Fine-tuned AfroXLMR (3 epochs)** | **67.93%** | **68.28%** |
+| TF-IDF + Logistic Regression (val) | 58.16% | 58.38% |
+| TF-IDF + Linear SVM (val) | 56.47% | 56.66% |
+| Fine-tuned AfriBERTa (test) | 63.65% | 63.88% |
+| **Fine-tuned AfroXLMR (test)** | **67.15%** | **67.47%** |
 
-**AfroXLMR wins by +4.3-4.4 points over AfriBERTa**, directly confirming the hypothesis laid
+Both Transformers clearly beat the baseline by a wide margin — AfroXLMR improves macro-F1 by
+roughly **+9 points** over the best classical baseline (Logistic Regression). This is a notably
+larger gap than the same pipeline showed on the higher-resource Hausa subset of this dataset
+(+4 points there): with less training data, the simple bag-of-words baseline struggles
+proportionally more, while the pretrained Transformer's prior language knowledge compensates —
+pretraining matters *more*, not less, in a lower-resource setting.
+
+(AfroXLMR was retrained once to confirm reproducibility — a second independent run landed at
+67.15%/67.47% macro-F1, close to the first run's 67.93%/68.28%, consistent with the expected
+run-to-run variance from not fixing a random seed. The currently deployed model is from the
+most recent run.)
+
+**AfroXLMR wins by roughly +3.6-4.4 points over AfriBERTa across both runs**, directly confirming the hypothesis laid
 out in Methodology: AfroXLMR's pretraining explicitly includes standalone Kinyarwanda, while
 AfriBERTa's only Kinyarwanda-adjacent exposure is "Gahuza" (code-mixed Kinyarwanda/Kirundi).
 Clean, language-specific pretraining data transferred better than code-mixed data for this
