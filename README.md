@@ -108,6 +108,8 @@ summative/
 │   ├── app.py                        # Gradio inference app (local use / alternative hosts)
 │   ├── streamlit_app.py              # Streamlit inference app (deployed via Streamlit
 │   │                                   # Community Cloud)
+│   ├── lang_guard.py                 # heuristic non-Kinyarwanda input warning (shared
+│   │                                   # by both apps — see Deployment below)
 │   ├── requirements.txt              # deployment deps (Streamlit app)
 │   └── requirements-gradio.txt       # local-only deps (Gradio app)
 ├── data/                              # (gitignored) raw/processed data cache
@@ -154,6 +156,16 @@ summative/
   #fact"* (true label: `negative`) — a philosophical/religious statement with no explicit
   negative vocabulary, where sentiment is implied by tone/context rather than stated, which
   is a harder case for a model this size with this little training data.
+- **Out-of-domain (non-Kinyarwanda) input:** AfroXLMR is inherently multilingual, so it will
+  confidently classify English, French, or gibberish input with no indication that it isn't
+  Kinyarwanda. Both apps now include a lightweight guard (`app/lang_guard.py`) that checks
+  input against the 250 most frequent words from our own Kinyarwanda training data — mostly
+  grammatical/function words ("mu", "ni", "ko", "na", "ariko"...) that appear across virtually
+  all Kinyarwanda text regardless of topic — and shows a non-blocking warning when an input
+  of 4+ words matches none of them. This is a heuristic, not a real language-ID model, so it
+  can still be fooled in either direction; it is deliberately permissive on short inputs
+  (benefit of the doubt below 4 analyzable words) to avoid false warnings on genuine short
+  Kinyarwanda phrases.
 
 ## Limitations
 

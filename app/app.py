@@ -25,6 +25,8 @@ import os
 import gradio as gr
 from transformers import pipeline
 
+from lang_guard import looks_like_kinyarwanda
+
 # AfroXLMR beat AfriBERTa on the real test set (68.3% vs 63.9% macro-F1) — see README
 # Results for the full comparison and why (clean Kinyarwanda pretraining vs AfriBERTa's
 # mixed Kinyarwanda/Kirundi "Gahuza" exposure).
@@ -46,9 +48,17 @@ EXAMPLES = [
 
 def predict(text: str):
     if not text or not text.strip():
-        return {}
+        return {}, ""
+    warning = ""
+    if not looks_like_kinyarwanda(text):
+        warning = (
+            "⚠️ This doesn't look like Kinyarwanda. The model was trained only on "
+            "Kinyarwanda text, so the prediction below may not be meaningful — this is a "
+            "simple word-overlap heuristic, not a real language detector, so it can still "
+            "be wrong in either direction."
+        )
     scores = classifier(text)[0]
-    return {item["label"]: float(item["score"]) for item in scores}
+    return {item["label"]: float(item["score"]) for item in scores}, warning
 
 
 demo = gr.Interface(
@@ -58,7 +68,10 @@ demo = gr.Interface(
         placeholder="Andika interuro mu Kinyarwanda hano... (Type a Kinyarwanda sentence here...)",
         label="Kinyarwanda text",
     ),
-    outputs=gr.Label(label="Predicted sentiment", num_top_classes=3),
+    outputs=[
+        gr.Label(label="Predicted sentiment", num_top_classes=3),
+        gr.Markdown(label="Language check"),
+    ],
     examples=EXAMPLES,
     title="Kinyarwanda Sentiment Classifier",
     description=(

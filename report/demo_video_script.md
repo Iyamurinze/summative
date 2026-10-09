@@ -117,10 +117,20 @@ on Hugging Face side-by-side (scroll to the "language" / pretraining description
 - "I tried Hugging Face Spaces first, but their Gradio/Docker hosting now requires a
   paid plan, so I deployed on Streamlit Community Cloud instead — free, no card needed."
 - Walk through the live app: type a Kinyarwanda sentence, click classify, show the
-  prediction and confidence bars. Do this with at least 2 different inputs — one where
+  prediction and confidence rings. Do this with at least 2 different inputs — one where
   it's clearly right, maybe one where it's less confident.
+- "One thing I thought about: the model itself has no idea what language it's looking at —
+  it'll happily classify English or French text too, since AfroXLMR is multilingual. So I
+  added a lightweight check: I pulled the 250 most common words from my own Kinyarwanda
+  training data — mostly small grammar words like 'mu', 'ni', 'na' that show up constantly
+  regardless of topic — and if someone's input matches none of them, the app shows a warning
+  that this probably isn't Kinyarwanda. It still gives a prediction, just with that caveat."
+- Type an English sentence into the app live, click classify, and show the warning actually
+  appearing. This is a good moment to demonstrate you thought about a real edge case, not
+  just the happy path.
 
-**Show:** the live deployed app in your browser, actually typing and getting predictions.
+**Show:** the live deployed app in your browser, actually typing and getting predictions,
+including one English input to trigger the language warning.
 
 ---
 

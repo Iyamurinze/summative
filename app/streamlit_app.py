@@ -21,6 +21,8 @@ import os
 import streamlit as st
 from transformers import pipeline
 
+from lang_guard import looks_like_kinyarwanda
+
 # Color per sentiment class — used by the circular confidence rings below.
 CLASS_COLORS = {
     "positive": "#22c55e",  # green
@@ -102,6 +104,15 @@ text = st.text_area(
 )
 
 if st.button("Classify", type="primary") and text.strip():
+    if not looks_like_kinyarwanda(text):
+        st.warning(
+            "⚠️ This doesn't look like Kinyarwanda. The model was trained only on "
+            "Kinyarwanda text, so the prediction below may not be meaningful — this is a "
+            "simple word-overlap heuristic, not a real language detector, so it can still "
+            "be wrong in either direction.",
+            icon="⚠️",
+        )
+
     scores = classifier(text)[0]
     scores_sorted = sorted(scores, key=lambda x: -x["score"])
     top = scores_sorted[0]
