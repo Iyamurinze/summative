@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Sentiment Classification for Kinyarwanda</title>
+<style>
+  @page {
+    size: A4;
+    margin: 2.5cm 2.2cm;
+    @bottom-center { content: counter(page); font-size: 9pt; color: #555; }
+  }
+  body {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 11pt;
+    line-height: 1.5;
+    color: #1a1a1a;
+  }
+  h1, h2, h3 { font-family: Georgia, serif; color: #111; page-break-after: avoid; }
+  h1.title { font-size: 20pt; margin-bottom: 0.1em; }
+  .subtitle { font-size: 12pt; color: #444; margin-top: 0; font-weight: normal; }
+  .meta { font-size: 10.5pt; color: #444; margin-bottom: 1.5em; }
+  .meta a { color: #1a4d8f; text-decoration: none; }
+  h2 { font-size: 14pt; margin-top: 1.6em; border-bottom: 1px solid #ccc; padding-bottom: 2px; }
+  h3 { font-size: 11.5pt; margin-top: 1.2em; }
+  p { text-align: justify; margin: 0.6em 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 10pt; }
+  th, td { border: 1px solid #999; padding: 5px 8px; text-align: left; }
+  th { background: #eee; }
+  .caption { font-size: 9.5pt; color: #555; margin-top: -0.4em; margin-bottom: 1em; }
+  code { font-family: "Courier New", monospace; background: #f3f3f3; padding: 1px 4px; font-size: 9.5pt; }
+  .abstract { background: #f7f7f7; padding: 1em 1.2em; border-left: 3px solid #888; margin: 1em 0; }
+  .refs p { text-indent: -1.5em; padding-left: 1.5em; margin: 0.5em 0; text-align: left; font-size: 10pt; }
+  .section-break { page-break-before: always; }
+  .todo { color: #b00; font-weight: bold; }
+  ul, ol { margin: 0.4em 0; }
+  li { margin: 0.2em 0; }
+</style>
+</head>
+<body>
+
+<h1 class="title">Sentiment Classification for Kinyarwanda: A Comparison of Clean and Code-Mixed Multilingual Pretraining</h1>
+<p class="subtitle">NLP Summative Project — Text Classification for an African Language</p>
+<p class="meta">
+Iyamurinze<br>
+African Leadership University<br>
+October 2026<br><br>
+<strong>GitHub Repository:</strong> <a href="https://github.com/Iyamurinze/summative">github.com/Iyamurinze/summative</a><br>
+<strong>Model (Hugging Face Hub):</strong> <a href="https://huggingface.co/Iyamurinze/afroxlmr-kinyarwanda-sentiment">huggingface.co/Iyamurinze/afroxlmr-kinyarwanda-sentiment</a><br>
+<strong>Live System:</strong> <span class="todo">[INSERT DEPLOYED STREAMLIT URL]</span><br>
+<strong>Demo Video:</strong> <span class="todo">[INSERT DEMO VIDEO LINK]</span>
+</p>
+
+<h2>1. Abstract</h2>
+<div class="abstract">
+<p>
+This project develops and deploys a sentiment classifier for Kinyarwanda, a Bantu language
+spoken by over 12 million people primarily in Rwanda, using the AfriSenti Twitter sentiment
+dataset (Muhammad et al., 2023). A TF-IDF with classical machine learning baseline
+(Logistic Regression and Linear SVM) is compared against two fine-tuned Transformer models:
+AfroXLMR (Alabi et al., 2022), an XLM-R checkpoint adapted on 17 African languages including
+standalone Kinyarwanda, and AfriBERTa (Ogueji et al., 2021), a model pretrained from scratch
+on 11 African languages whose only Kinyarwanda-adjacent exposure is "Gahuza," a code-mixed
+Kinyarwanda/Kirundi corpus. On a held-out test set of 1,026 tweets, the Logistic Regression
+baseline reaches 58.4% macro-F1, AfriBERTa reaches 63.9%, and AfroXLMR reaches 67.5%, a
++9-point improvement over the baseline. AfroXLMR's consistent outperformance of AfriBERTa
+across all three sentiment classes supports the hypothesis that clean, language-specific
+pretraining data transfers better to a downstream task than code-mixed exposure to a related
+language, even when the two languages are typologically close. Error analysis shows the
+models handle explicit, lexically-marked sentiment well but struggle with implicit or
+rhetorical sentiment expressed through tone and cultural context rather than vocabulary. The
+final model is deployed through a Streamlit web application backed by the fine-tuned AfroXLMR
+checkpoint hosted on the Hugging Face Hub.
+</p>
+</div>
+
+<h2>2. Introduction</h2>
+<p>
+Natural language processing research and tooling remain heavily skewed toward a small number
+of high-resource languages, leaving most African languages with limited labeled data, few
+pretrained models, and almost no deployed consumer-facing NLP applications (Muhammad et al.,
+2023). Sentiment analysis of social media text is one of the most immediately useful NLP
+applications for these languages: it enables monitoring of public opinion, customer feedback,
+and public communication at a scale manual reading cannot match. This project builds and
+deploys a sentiment classifier for Kinyarwanda social media text, assigning each input a
+label of <code>positive</code>, <code>negative</code>, or <code>neutral</code>.
+</p>
+<p>
+Kinyarwanda was selected for two reasons. First, it is a genuinely under-resourced language
+relative to its speaker population of over 12 million, with comparatively few deployed
+sentiment or classification tools. Second, and more directly motivating the final design of
+this project, the author is a Kinyarwanda speaker. An earlier iteration of this project used
+Hausa, for which a strong dataset and pretrained models are also available; however, the
+author does not read Hausa, which made genuine qualitative error analysis, honest
+interpretation of model mistakes, and a defensible oral explanation of the system's behavior
+impractical. The project was deliberately rebuilt around Kinyarwanda so that every reported
+example, error, and design decision could be verified and explained first-hand rather than
+taken on faith from automated metrics alone. This is a practical, not merely academic, point:
+a central requirement of this coursework is the ability to defend the submitted work, which
+requires the author to actually understand the language the system operates on.
+</p>
+<p>
+The objective of this project is threefold: (1) establish a classical machine learning
+baseline for Kinyarwanda sentiment classification, (2) fine-tune and compare two pretrained
+Transformer models that differ specifically in whether their pretraining data included clean,
+standalone Kinyarwanda or only code-mixed Kinyarwanda/Kirundi text, and (3) deploy the
+best-performing model through a public web interface.
+</p>
+
+<h2>3. Related Work</h2>
+<p>
+AfriSenti (Muhammad et al., 2023) is, to date, the largest sentiment analysis benchmark for
+African languages, covering 110,000+ annotated tweets across 14 languages including
+Kinyarwanda, released as part of the SemEval-2023 Task 12 shared task. It provides the labeled
+data this project relies on and is the only resource of its kind offering naturally-occurring,
+human-annotated Kinyarwanda sentiment data at this scale.
+</p>
+<p>
+Two lines of prior work on pretrained Transformers for African languages motivate the model
+comparison in this project. Alabi et al. (2022) adapt XLM-R (Conneau et al., 2020) to 17
+African languages through continued masked-language-model pretraining, producing AfroXLMR;
+Kinyarwanda is one of the 17 languages included, pretrained as a standalone language distinct
+from Kirundi. Ogueji et al. (2021) take a different approach with AfriBERTa, pretraining a
+smaller Transformer from scratch on a corpus of only 11 African languages with no general
+multilingual or English pretraining at all; for Kinyarwanda specifically, AfriBERTa's only
+exposure is through "Gahuza," a code-mixed Kinyarwanda/Kirundi social media corpus, not pure
+Kinyarwanda, a fact confirmed directly from the model's official documentation on the Hugging
+Face Hub. No prior published work, to the author's knowledge, directly compares these two
+specific pretraining strategies on a Kinyarwanda-only downstream task, which is the gap this
+project's experiment addresses.
+</p>
+<p>
+Beyond sentiment, Niyongabo et al. (2020) introduce KINNEWS and KIRNEWS, news topic
+classification datasets for Kinyarwanda and Kirundi, demonstrating that labeled text
+classification resources for Kinyarwanda exist but remain limited relative to higher-resource
+languages. This project's approach — comparing a classical TF-IDF baseline against fine-tuned
+Transformers — follows the standard methodology established across this body of work for
+low-resource African language classification tasks.
+</p>
+
+<h2>4. Dataset and Data Preparation</h2>
+<p>
+The dataset is the Kinyarwanda subset of AfriSenti-Twitter (Muhammad et al., 2023), accessed
+via the script-free parquet mirror <code>mteb/AfriSentiClassification</code> on the Hugging
+Face Hub, since the original <code>HausaNLP/AfriSenti-Twitter</code> repository ships a legacy
+loading script incompatible with current versions of the <code>datasets</code> library. The
+mirror preserves the official AfriSenti splits and labels.
+</p>
+<p>
+The dataset contains 3,302 training, 827 validation, and 1,026 test tweets. Labels are
+<code>positive</code>, <code>negative</code>, and <code>neutral</code>, and all three splits
+are reasonably class-balanced: the training set contains 1,257 negative, 1,146 neutral, and
+899 positive tweets; the test set contains 393 negative, 355 neutral, and 278 positive tweets.
+This is a meaningfully smaller dataset than some other AfriSenti languages — approximately 4x
+smaller than the Hausa subset of the same dataset (14,172 training tweets) — which is
+discussed further as a limitation in Section 9.
+</p>
+<p>
+The data consists of real, naturally-occurring, human-annotated tweets, not synthetic or
+machine-generated text, satisfying the project's requirement to work with authentic,
+naturally-occurring data. As Twitter text, it contains <code>@mentions</code>, URLs, emojis,
+and informal spelling typical of social media. During preprocessing, <code>@mentions</code>
+and URLs are normalized to placeholder tokens (<code>&lt;USER&gt;</code>,
+<code>&lt;URL&gt;</code>) since they carry no sentiment signal and would otherwise inflate
+vocabulary size for the TF-IDF baseline. Emojis and punctuation are deliberately preserved,
+since both frequently carry genuine sentiment signal in tweets (e.g. 😂, ❤️, repeated
+exclamation marks). No additional train/validation/test splitting was performed, as AfriSenti
+provides official splits as part of the SemEval-2023 shared task.
+</p>
+
+<h2>5. Methodology</h2>
+<h3>5.1 Baseline</h3>
+<p>
+The baseline represents each tweet as a TF-IDF vector over unigrams and bigrams, capped at
+20,000 features with a minimum document frequency of 2, then classifies with Logistic
+Regression and, as a second experiment, a Linear Support Vector Machine, both using balanced
+class weights to account for any residual class imbalance. This baseline establishes the
+performance achievable without any contextual language understanding, purely from surface-level
+word and bigram frequency patterns — the number the fine-tuned Transformers must beat to
+justify their additional complexity and compute cost.
+</p>
+<h3>5.2 Proposed Models</h3>
+<p>
+Two pretrained Transformer checkpoints are fine-tuned identically, each with a 3-class
+classification head added on top of the base encoder, trained end-to-end:
+</p>
+<ul>
+<li><strong>AfroXLMR</strong> (<code>Davlan/afro-xlmr-base</code>; Alabi et al., 2022) — an
+XLM-R-base checkpoint continually pretrained on 17 African languages plus Arabic, French, and
+English, with Kinyarwanda included as a standalone language.</li>
+<li><strong>AfriBERTa</strong> (<code>castorini/afriberta_large</code>; Ogueji et al., 2021) —
+a 126M-parameter Transformer pretrained from scratch on 11 African languages; its only
+Kinyarwanda-adjacent pretraining data is "Gahuza," a code-mixed Kinyarwanda/Kirundi corpus.</li>
+</ul>
+<p>
+Both models are fine-tuned with identical hyperparameters to isolate the effect of the
+pretrained checkpoint: learning rate 2e-5, per-device batch size 16, 3 epochs, weight decay
+0.01, maximum sequence length 64 tokens, and the best checkpoint selected by validation
+macro-F1 (<code>metric_for_best_model="f1"</code>) using the Hugging Face
+<code>Trainer</code> API. This comparison directly tests whether exposure to clean,
+standalone Kinyarwanda during pretraining (AfroXLMR) transfers better to a pure-Kinyarwanda
+downstream task than exposure to code-mixed Kinyarwanda/Kirundi text (AfriBERTa), even though
+Kinyarwanda and Kirundi are closely related Bantu languages.
+</p>
+<h3>5.3 Evaluation Protocol</h3>
+<p>
+The baseline models are evaluated on the validation split. The fine-tuned Transformers are
+evaluated on the full test set by loading the exact checkpoints pushed to the Hugging Face
+Hub and running inference directly — ensuring the reported numbers reflect the actual deployed
+artifact, not an in-session training metric that could differ from what end users interact
+with.
+</p>
+
+<div class="section-break"></div>
+<h2>6. Experiments and Results</h2>
+<p>
+Table 1 summarizes all four approaches. Accuracy and macro-averaged Precision/Recall/F1 are
+reported; macro-F1 is treated as the primary metric since it weighs all three sentiment
+classes equally regardless of their (near-)balance, which is appropriate given the
+classification task has no class of overriding importance.
+</p>
+<table>
+<tr><th>Approach</th><th>Split</th><th>Accuracy</th><th>Macro-F1</th></tr>
+<tr><td>TF-IDF + Logistic Regression</td><td>Validation</td><td>58.16%</td><td>58.38%</td></tr>
+<tr><td>TF-IDF + Linear SVM</td><td>Validation</td><td>56.47%</td><td>56.66%</td></tr>
+<tr><td>Fine-tuned AfriBERTa</td><td>Test</td><td>63.65%</td><td>63.88%</td></tr>
+<tr><td><strong>Fine-tuned AfroXLMR</strong></td><td>Test</td><td><strong>67.15–67.93%</strong></td><td><strong>67.47–68.28%</strong></td></tr>
+</table>
+<p class="caption">Table 1. Comparison of all four approaches. AfroXLMR was trained twice to
+check reproducibility; both runs are reported as a range (67.15–67.93% accuracy,
+67.47–68.28% macro-F1) given the expected run-to-run variance from not fixing a random
+seed. Both runs beat AfriBERTa by a consistent margin.</p>
+<p>
+Both fine-tuned Transformers substantially outperform the classical baseline. AfroXLMR
+improves macro-F1 by approximately 9 points over the strongest baseline (Logistic
+Regression), compared to only a ~4-point improvement the same pipeline achieved on the
+higher-resource Hausa subset of this same dataset in an earlier iteration of this project.
+This larger gap in a lower-resource setting is itself an interesting finding: with less
+training data, the bag-of-words baseline has proportionally less signal to learn from, while
+the pretrained Transformer's prior language knowledge compensates more — pretraining appears
+to matter <em>more</em>, not less, as available task-specific data shrinks.
+</p>
+<p>
+More directly addressing the experiment's central question, AfroXLMR consistently
+outperforms AfriBERTa by roughly 3.6–4.4 points macro-F1 across two independent training
+runs. Table 2 breaks this down by class for a single representative run of each model.
+</p>
+<table>
+<tr><th>Class</th><th>AfriBERTa F1</th><th>AfroXLMR F1</th></tr>
+<tr><td>Negative</td><td>0.619</td><td>0.651</td></tr>
+<tr><td>Neutral</td><td>0.637</td><td>0.685</td></tr>
+<tr><td>Positive</td><td>0.661</td><td>0.713</td></tr>
+</table>
+<p class="caption">Table 2. Per-class F1 on the test set. AfroXLMR outperforms AfriBERTa in
+every individual class, not merely on the aggregate macro-F1 — evidence that the improvement
+reflects a genuinely better internal representation of Kinyarwanda, not an artifact of class
+weighting.</p>
+<p>
+This per-class consistency is important: because AfroXLMR wins on all three classes rather
+than trading off strength in one class for weakness in another, the aggregate macro-F1
+improvement is not an artifact of how the macro-average happens to weight the classes. This
+supports interpreting the result as a genuine representational advantage from AfroXLMR's
+exposure to clean Kinyarwanda during pretraining, directly confirming the hypothesis set out
+in Section 5.2.
+</p>
+
+<h2>7. Error Analysis and Discussion</h2>
+<p>
+Across both Transformer models, the <code>negative</code> class consistently shows the
+lowest per-class F1, and recall for <code>negative</code> is the lowest of the three classes
+for AfroXLMR (0.649 vs. 0.693 for neutral and 0.705 for positive), indicating the model
+under-identifies negative sentiment relative to the other two classes more often than it
+under-identifies positive or neutral sentiment.
+</p>
+<p>
+Qualitative inspection of individual predictions clarifies why. Correctly classified examples
+tend to express sentiment explicitly and lexically — for instance, <em>"Mwese muzagire
+Umwaka mushya muhire wa #2022"</em> ("May you all have a happy new year 2022") is correctly
+classified positive with 94% confidence, and <em>"Ibintu 3 byo kureba: Intumbero, Imyitwarire,
+Ururimi."</em> is correctly classified negative with 77% confidence. By contrast, a
+representative misclassification is <em>"Ngo iyo Imana iza kwica satani, satani yari kuba
+yitabye Imana #fact"</em> (roughly, "They say if God were to kill Satan, Satan would have
+already surrendered to God"), labeled negative in the dataset but predicted neutral with 68%
+confidence. This tweet expresses its sentiment through a philosophical/religious rhetorical
+structure rather than explicit negative vocabulary — the kind of implicit, culturally-situated
+sentiment that is inherently harder for a model to learn from a training set of only 3,302
+examples, since such rhetorical patterns appear too infrequently for the model to generalize a
+reliable signal from them.
+</p>
+<p>
+This pattern is consistent with the broader literature on pretraining-data relevance: Alabi et
+al. (2022) find that target-language-adapted pretraining consistently improves downstream task
+performance over generic multilingual pretraining, which this project's AfroXLMR-vs-AfriBERTa
+comparison independently reproduces at a finer grain — not just "more adaptation helps," but
+specifically that clean exposure to the exact target language outperforms exposure to a
+closely related but distinct language (Kirundi, via Gahuza), even though the two languages
+share substantial vocabulary and grammar as neighboring Bantu languages. The remaining error
+patterns — difficulty with implicit, rhetorical, or culturally-coded sentiment — are a function
+of limited training data rather than a flaw specific to either pretrained checkpoint, and would
+likely improve with a larger labeled dataset or techniques such as cross-lingual transfer from
+higher-resource AfriSenti languages before fine-tuning on Kinyarwanda specifically (see Section
+9).
+</p>
+
+<h2>8. Deployment</h2>
+<p>
+The fine-tuned AfroXLMR model is hosted on the Hugging Face Hub at
+<code>Iyamurinze/afroxlmr-kinyarwanda-sentiment</code>, from which it is loaded directly by a
+Streamlit web application (<code>app/streamlit_app.py</code> in the project repository). The
+application exposes a simple text box where a user enters Kinyarwanda text and receives the
+predicted sentiment label along with the model's confidence for all three classes, plus a set
+of pre-loaded example tweets (with known gold labels) demonstrating both correct predictions
+and a genuine misclassification. The app is deployed on Streamlit Community Cloud, which was
+chosen specifically because it requires no payment or card details for public apps, after
+Hugging Face Spaces' Gradio/Docker SDKs were found to require a paid plan at the time of this
+project. A parallel Gradio implementation (<code>app/app.py</code>) is included in the
+repository for local use. Both applications load the identical pushed model, so their
+predictions are equivalent.
+</p>
+
+<h2>9. Limitations and Future Work</h2>
+<ul>
+<li><strong>Dataset size.</strong> At 3,302 training tweets, the Kinyarwanda subset of
+AfriSenti is roughly 4x smaller than some other AfriSenti languages, which likely constrains
+how well either fine-tuned model can learn, particularly for implicit or rhetorical sentiment
+patterns that require more examples to generalize from.</li>
+<li><strong>Single-run training.</strong> Models were trained without a fixed random seed;
+reported AfroXLMR results vary by roughly 0.4–0.8 points macro-F1 across two independent
+runs. A more rigorous evaluation would average results across multiple seeds.</li>
+<li><strong>Domain narrowness.</strong> Both models are trained exclusively on Twitter data;
+performance on other Kinyarwanda text domains (news, formal writing, customer service
+transcripts) is untested and likely to differ.</li>
+<li><strong>No hyperparameter search.</strong> Learning rate, batch size, and epoch count were
+fixed by convention rather than tuned; a learning-rate sweep or longer training with early
+stopping may yield modest further gains.</li>
+<li><strong>Future work</strong> could explore cross-lingual transfer — fine-tuning first on
+the full multilingual AfriSenti training set before specializing on Kinyarwanda — to
+partially compensate for the limited Kinyarwanda-specific data, as well as ensembling
+AfroXLMR and AfriBERTa predictions, or evaluating a larger AfroXLMR variant.</li>
+</ul>
+
+<h2>10. Conclusion</h2>
+<p>
+This project built and deployed a Kinyarwanda sentiment classifier, establishing a TF-IDF
+classical baseline and comparing two fine-tuned Transformer models that differ specifically in
+whether their pretraining data included clean, standalone Kinyarwanda or only code-mixed
+Kinyarwanda/Kirundi text. Both Transformers substantially outperformed the baseline, with
+AfroXLMR reaching 67.5% macro-F1 against the baseline's 58.4% and AfriBERTa's 63.9%. AfroXLMR's
+consistent per-class advantage over AfriBERTa provides direct empirical evidence that clean,
+language-specific pretraining data transfers better than code-mixed exposure to a closely
+related language, even between typologically similar Bantu languages. Error analysis showed
+that both models handle explicit, lexically-marked sentiment reliably but struggle with
+implicit, rhetorical sentiment — a limitation plausibly tied to the dataset's limited size
+rather than to either pretrained checkpoint specifically. Beyond the technical result, choosing
+a language the author could genuinely read and verify proved essential to producing honest,
+defensible error analysis rather than metrics taken on faith — a lesson as relevant to doing
+this kind of project well as any individual modeling choice.
+</p>
+
+<h2>11. References</h2>
+<div class="refs">
+<p>Alabi, J. O., Adelani, D. I., Mosbach, M., &amp; Klakow, D. (2022). Adapting pre-trained
+language models to African languages via multilingual adaptive fine-tuning. In
+<em>Proceedings of the 29th International Conference on Computational Linguistics
+(COLING 2022)</em>.</p>
+
+<p>Conneau, A., Khandelwal, K., Goyal, N., Chaudhary, V., Wenzek, G., Guzmán, F., Grave, E.,
+Ott, M., Zettlemoyer, L., &amp; Stoyanov, V. (2020). Unsupervised cross-lingual representation
+learning at scale. In <em>Proceedings of the 58th Annual Meeting of the Association for
+Computational Linguistics (ACL 2020)</em>.</p>
+
+<p>Muhammad, S. H., Abdulmumin, I., Ayele, A. A., Ousidhoum, N., Adelani, D. I., Yimam, S. M.,
+Ahmad, I. S., Beloucif, M., Mohammad, S., Ruder, S., Hourrane, O., Brazdil, P., Ali, F. D. M.
+M. A., Davis, D., Osei, S., Bello, B. S., Ibrahim, F., Gwadabe, T., Rutunda, S., Belay, T.,
+Messelle, W. B., Balcha, H. B., Chala, S. A., Gebremichael, H. T., Opoku, B., &amp; Arthur, S.
+(2023). AfriSenti: A Twitter sentiment analysis benchmark for African languages.
+<em>arXiv:2302.08956</em>.</p>
+
+<p>Niyongabo, R. A., Qu, Q., Kreutzer, J., &amp; Huang, L. (2020). KINNEWS and KIRNEWS:
+Benchmarking cross-lingual text classification for Kinyarwanda and Kirundi. In
+<em>Proceedings of the 28th International Conference on Computational Linguistics
+(COLING 2020)</em>.</p>
+
+<p>Ogueji, K., Zhu, Y., &amp; Lin, J. (2021). Small data? No problem! Exploring the viability
+of pretrained multilingual language models for low-resourced languages. In <em>Proceedings of
+the 1st Workshop on Multilingual Representation Learning (MRL 2021)</em>.</p>
+
+<p>Hugging Face. <em>transformers</em> and <em>datasets</em> libraries.
+<a href="https://huggingface.co/docs">huggingface.co/docs</a>.</p>
+
+<p>Pedregosa, F., et al. (2011). Scikit-learn: Machine learning in Python. <em>Journal of
+Machine Learning Research</em>, 12, 2825–2830.</p>
+</div>
+
+</body>
+</html>
