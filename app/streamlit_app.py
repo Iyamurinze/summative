@@ -41,34 +41,27 @@ CLASS_COLORS = {
     "negative": "#ef4444",
     "neutral": "#f59e0b",
 }
-# Streamlit's own markdown colour names, for colouring text inside button labels
-# (button labels take markdown, not HTML, so the class colours above can't be used there).
-CLASS_MD_COLOR = {"positive": "green", "negative": "red", "neutral": "orange"}
-
-# Real tweets from the AfriSenti-Kinyarwanda test set, with their gold labels, verified
-# against this exact deployed model's predictions. Not hand-written sentences — the model
-# is trained only on real tweet style and misreads clean textbook Kinyarwanda. Three the
-# model gets right (one per class) plus one genuine failure, so the demo shows both.
+# Real tweets from the AfriSenti-Kinyarwanda test set with their gold labels, verified
+# against this exact deployed model's predictions (three it gets right, one genuine
+# failure). These are no longer offered as clickable samples, but the lookup below still
+# fires if someone pastes one in — so the readout can say whether the model matched the
+# known answer instead of silently sounding confident.
 EXAMPLES = [
     {
         "text": "Mwese muzagire Umwaka mushya muhire wa #2022",
         "gold": "positive",
-        "note": "A new-year greeting — explicit, lexically clear sentiment.",
     },
     {
         "text": "Ibintu 3 byo kureba: Intumbero, Imyitwarire, Ururimi.",
         "gold": "negative",
-        "note": "Short and list-like, with the sentiment carried by framing.",
     },
     {
         "text": "Ndumva nta bwenge mfite today ndaza kwiba ibitweet byanyuu",
         "gold": "neutral",
-        "note": "Code-switched — Kinyarwanda mixed with English ('today').",
     },
     {
         "text": "Ngo iyo Imana iza kwica satani, satani yari kuba yitabye Imana #fact",
         "gold": "negative",
-        "note": "Known failure: rhetorical religious framing, no explicit negative words.",
     },
 ]
 
@@ -152,38 +145,6 @@ STYLES = """
     text-transform: uppercase;
     color: var(--kin-dim);
     font-family: var(--kin-mono);
-  }
-  .kin-rowlabel { margin: 26px 0 2px; }
-
-  /* --- Example rows ------------------------------------------------------------
-     A list of dataset samples with hairline dividers — the natural form for this
-     content, and it sidesteps the identical-card-grid look entirely. */
-  div[data-testid="stButton"] button[kind="secondary"] {
-    width: 100%;
-    text-align: left;
-    justify-content: flex-start;
-    background: transparent;
-    border: none;
-    border-bottom: 1px solid var(--kin-rule-soft);
-    border-radius: 0;
-    padding: 13px 10px 13px 2px;
-    color: rgba(250, 250, 250, 0.9);
-    font-size: 0.86rem;
-    line-height: 1.5;
-    font-weight: 420;
-    white-space: normal;
-    transition: background-color 150ms ease, padding-left 150ms var(--kin-ease-out);
-  }
-  @media (hover: hover) and (pointer: fine) {
-    div[data-testid="stButton"] button[kind="secondary"]:hover {
-      background: rgba(255, 255, 255, 0.04);
-      padding-left: 9px;
-      color: #fafafa;
-    }
-  }
-  div[data-testid="stButton"] button[kind="secondary"]:focus-visible {
-    outline: 2px solid #60a5fa;
-    outline-offset: -2px;
   }
 
   /* --- Readout ------------------------------------------------------------------ */
@@ -453,28 +414,6 @@ if "kin_text" not in st.session_state:
 with st.spinner("Loading the model… (first run can take a minute on a cold start)"):
     classifier = load_classifier()
 
-
-def _use_example(example_text: str) -> None:
-    st.session_state.kin_text = example_text
-
-
-st.markdown(
-    '<div class="kin-eyebrow kin-rowlabel">Samples from the test set · '
-    "known answers</div>",
-    unsafe_allow_html=True,
-)
-
-for index, example in enumerate(EXAMPLES):
-    st.button(
-        f":{CLASS_MD_COLOR[example['gold']]}[{example['gold']}]"
-        f"   {example['text']}",
-        key=f"ex-{index}",
-        help=example["note"],
-        on_click=_use_example,
-        args=(example["text"],),
-        use_container_width=True,
-    )
-
 with st.form("classify", border=False):
     text = st.text_area(
         "Kinyarwanda text",
@@ -501,9 +440,11 @@ if submitted and text.strip():
     top, rest = ranked[0], ranked[1:]
     accent = CLASS_COLORS.get(top["label"], "#60a5fa")
 
+    # Only say anything when there is a reference label to compare against; most input
+    # is free text, where a "no reference label" line would just be noise on every run.
     gold = GOLD_BY_TEXT.get(text.strip())
     if gold is None:
-        note = "Free text — no reference label to compare against."
+        note = ""
     elif gold == top["label"]:
         note = f"Matches the known label for this sample ({gold})."
     else:
@@ -526,7 +467,7 @@ if submitted and text.strip():
           <div class="kin-readout-head">
             <span class="kin-eyebrow">Predicted</span>
             <span class="kin-verdict">{top['label']}</span>
-            <span class="kin-verdict-note">{note}</span>
+            {f'<span class="kin-verdict-note">{note}</span>' if note else ''}
           </div>
           <div class="kin-ring-slot">
             {ring_svg(top['score'], accent, top['label'])}
@@ -545,7 +486,7 @@ if submitted and text.strip():
     )
 
 elif submitted:
-    st.info("Enter some Kinyarwanda text, or pick one of the samples above.")
+    st.info("Enter some Kinyarwanda text above to classify it.")
 
 st.markdown(
     html_block(
