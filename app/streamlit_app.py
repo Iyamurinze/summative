@@ -343,6 +343,24 @@ def load_classifier():
     return pipeline("text-classification", model=MODEL_ID, top_k=None)
 
 
+def html_block(markup: str) -> str:
+    """Flatten indentation so Streamlit's markdown parser passes the HTML through.
+
+    Markdown turns any line indented four or more spaces into a code block, and a blank
+    line closes an open HTML block. Multi-line markup built from indented f-strings trips
+    both: once an interpolated fragment leaves a whitespace-only line behind, the block
+    closes and the following indented tags get rendered as literal code. Stripping
+    per-line indentation and dropping blank lines avoids it without changing how the
+    HTML renders, since HTML ignores that whitespace anyway.
+
+    Must be applied to the fully composed string, after interpolation, so that nested
+    fragments are flattened too.
+    """
+    return "\n".join(
+        stripped for line in markup.splitlines() if (stripped := line.strip())
+    )
+
+
 def embed_html(html: str, height: int = 1) -> None:
     """Embed a raw HTML/JS snippet, across Streamlit versions.
 
@@ -365,7 +383,7 @@ st.set_page_config(
     page_icon="🇷🇼",
     layout="centered",
 )
-st.markdown(STYLES, unsafe_allow_html=True)
+st.markdown(html_block(STYLES), unsafe_allow_html=True)
 
 # Kinyarwanda is not in any browser's dictionary, so the native spellchecker underlines
 # essentially every word typed into the box. Streamlit's text_area exposes no spellcheck
@@ -390,19 +408,22 @@ embed_html(
 )
 
 st.markdown(
-    """
+    html_block(
+        """
     <div class="kin-head">
       <h1>Kinyarwanda Sentiment Classifier</h1>
       <p>A fine-tuned AfroXLMR Transformer that labels Kinyarwanda text as positive,
       negative, or neutral. Trained on the AfriSenti Twitter corpus (Muhammad et al.,
       2023) — an NLP summative project, not a general-purpose chatbot.</p>
     </div>
-    """,
+    """
+    ),
     unsafe_allow_html=True,
 )
 
 st.markdown(
-    f"""
+    html_block(
+        f"""
     <div class="kin-metrics">
       <div class="kin-metric">
         <span class="kin-metric-val">{TEST_ACCURACY}%</span>
@@ -421,7 +442,8 @@ st.markdown(
         <span class="kin-metric-key">Classes</span>
       </div>
     </div>
-    """,
+    """
+    ),
     unsafe_allow_html=True,
 )
 
@@ -498,7 +520,8 @@ if submitted and text.strip():
     st.markdown(f"<style>{ring_keyframes(top['score'])}</style>",
                 unsafe_allow_html=True)
     st.markdown(
-        f"""
+        html_block(
+            f"""
         <div class="kin-readout" style="--kin-accent: {accent};">
           <div class="kin-readout-head">
             <span class="kin-eyebrow">Predicted</span>
@@ -510,7 +533,8 @@ if submitted and text.strip():
           </div>
           <div class="kin-bars">{bars}</div>
         </div>
-        """,
+        """
+        ),
         unsafe_allow_html=True,
     )
 
@@ -524,13 +548,15 @@ elif submitted:
     st.info("Enter some Kinyarwanda text, or pick one of the samples above.")
 
 st.markdown(
-    f"""
+    html_block(
+        f"""
     <div class="kin-note">
       Model <a href="https://huggingface.co/{MODEL_ID}" target="_blank">{MODEL_ID}</a>
       &nbsp;·&nbsp; Data
       <a href="https://arxiv.org/abs/2302.08956" target="_blank">AfriSenti</a>
       (Muhammad et al., 2023)
     </div>
-    """,
+    """
+    ),
     unsafe_allow_html=True,
 )
