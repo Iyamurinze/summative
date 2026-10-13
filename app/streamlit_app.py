@@ -29,19 +29,21 @@ from lang_guard import looks_like_kinyarwanda
 MODEL_ID = os.environ.get("HF_MODEL_ID", "Iyamurinze/afroxlmr-kinyarwanda-sentiment")
 
 # Headline evaluation numbers, measured on the full AfriSenti-Kinyarwanda test split by
-# running this exact pushed checkpoint (n=1,026). Surfaced in the UI so users can calibrate
-# how much to trust any single prediction.
-TEST_ACCURACY = "67.2%"
-TEST_MACRO_F1 = "67.5%"
+# running this exact pushed checkpoint (n=1,026).
+TEST_ACCURACY = "67.2"
+TEST_MACRO_F1 = "67.5"
 TEST_SIZE = "1,026"
 
-# One colour per sentiment class. All three clear 4.5:1 against Streamlit's dark
-# background (#0e1117): green 8.2:1, red 5.0:1, amber 8.6:1.
+# One colour per sentiment class. All three clear 4.5:1 against the page background
+# (#0e1117): green 8.2:1, red 5.0:1, amber 8.6:1.
 CLASS_COLORS = {
     "positive": "#22c55e",
     "negative": "#ef4444",
     "neutral": "#f59e0b",
 }
+# Streamlit's own markdown colour names, for colouring text inside button labels
+# (button labels take markdown, not HTML, so the class colours above can't be used there).
+CLASS_MD_COLOR = {"positive": "green", "negative": "red", "neutral": "orange"}
 
 # Real tweets from the AfriSenti-Kinyarwanda test set, with their gold labels, verified
 # against this exact deployed model's predictions. Not hand-written sentences — the model
@@ -73,222 +75,265 @@ EXAMPLES = [
 GOLD_BY_TEXT = {ex["text"]: ex["gold"] for ex in EXAMPLES}
 
 # --- Styling -----------------------------------------------------------------------
-# Motion gate: classification is an *occasional* interaction (a user runs a handful of
-# sentences), so a standard entrance animation is in budget. Purpose: state indication —
-# the ring draw communicates the magnitude of each confidence value as it lands. Curves and
-# durations follow the house motion scale; prefers-reduced-motion drops movement but keeps
-# the final state (the inline stroke-dashoffset already holds the end value).
+# The visual idea is an instrument readout rather than a dashboard: hairline rules
+# instead of boxes, tabular monospace numerals, and colour carried by the data rather
+# than by the chrome. Deliberately avoids the stock combination of a card grid, a
+# gradient-wash panel and gradient headline text.
+#
+# Motion gate: classification is an *occasional* interaction, so a standard entrance is
+# in budget. Purpose: state indication — the ring and bars convey magnitude as they land.
+# prefers-reduced-motion drops movement but keeps the final state.
 STYLES = """
 <style>
   :root {
     --kin-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-    --kin-surface: rgba(255, 255, 255, 0.035);
-    --kin-border: rgba(255, 255, 255, 0.09);
-    --kin-text-dim: rgba(250, 250, 250, 0.62);
-    --kin-radius-card: 16px;
-    --kin-radius-chip: 999px;
+    --kin-rule: rgba(255, 255, 255, 0.10);
+    --kin-rule-soft: rgba(255, 255, 255, 0.06);
+    --kin-dim: rgba(250, 250, 250, 0.58);
+    --kin-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   }
 
-  .kin-hero { margin: 0 0 6px; }
-  .kin-hero h1 {
-    font-size: clamp(2rem, 5vw, 2.9rem);
-    font-weight: 800;
-    letter-spacing: -0.025em;
-    line-height: 1.1;
-    margin: 0 0 10px;
-    background: linear-gradient(100deg, #fafafa 25%, #22c55e 65%, #60a5fa 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
+  /* The spellcheck-disabling helper below renders as a zero-height iframe; keep it
+     from reserving vertical space. Covers both the st.iframe and the older
+     components.v1.html element names. */
+  div[data-testid="stIFrame"]:has(iframe[height="1"]),
+  div[data-testid="stCustomComponentV1"]:has(iframe[height="1"]) { display: none; }
+
+  /* --- Masthead ---------------------------------------------------------------- */
+  .kin-head { padding-bottom: 20px; border-bottom: 1px solid var(--kin-rule); }
+  .kin-head h1 {
+    font-size: clamp(1.75rem, 4vw, 2.35rem);
+    font-weight: 660;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    margin: 0 0 9px;
+    color: #fafafa;
   }
-  .kin-hero p {
-    color: var(--kin-text-dim);
-    font-size: 0.95rem;
-    line-height: 1.6;
-    max-width: 62ch;
+  .kin-head p {
+    color: var(--kin-dim);
+    font-size: 0.9rem;
+    line-height: 1.65;
+    max-width: 60ch;
     margin: 0;
   }
 
-  .kin-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 4px; }
-  .kin-chip {
-    display: inline-flex; align-items: center; gap: 7px;
-    background: var(--kin-surface);
-    border: 1px solid var(--kin-border);
-    border-radius: var(--kin-radius-chip);
-    padding: 5px 13px;
-    font-size: 0.78rem;
-    color: var(--kin-text-dim);
-    white-space: nowrap;
+  /* Metrics as a measured strip divided by rules, not as a row of pills. */
+  .kin-metrics {
+    display: flex; flex-wrap: wrap;
+    margin: 0 0 4px;
+    border-bottom: 1px solid var(--kin-rule);
   }
-  .kin-chip b { color: #fafafa; font-weight: 650; }
-  .kin-chip-dot {
-    width: 6px; height: 6px; border-radius: 50%;
-    background: #22c55e;
-    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.16);
+  .kin-metric {
+    padding: 14px 22px 14px 0;
+    margin-right: 22px;
+    border-right: 1px solid var(--kin-rule-soft);
+  }
+  .kin-metric:last-child { border-right: none; margin-right: 0; }
+  .kin-metric-val {
+    display: block;
+    font-family: var(--kin-mono);
+    font-size: 1.12rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: #fafafa;
+    letter-spacing: -0.02em;
+  }
+  .kin-metric-key {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--kin-dim);
+    margin-top: 3px;
   }
 
-  .kin-section-label {
-    font-size: 0.72rem;
-    font-weight: 650;
-    letter-spacing: 0.02em;
-    color: var(--kin-text-dim);
-    margin: 26px 0 10px;
+  .kin-eyebrow {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--kin-dim);
+    font-family: var(--kin-mono);
   }
+  .kin-rowlabel { margin: 26px 0 2px; }
 
-  /* Example buttons, styled as pickable cards. If Streamlit changes its button
-     internals this selector simply stops matching and the buttons fall back to the
-     default look — they keep working either way. */
+  /* --- Example rows ------------------------------------------------------------
+     A list of dataset samples with hairline dividers — the natural form for this
+     content, and it sidesteps the identical-card-grid look entirely. */
   div[data-testid="stButton"] button[kind="secondary"] {
     width: 100%;
     text-align: left;
     justify-content: flex-start;
-    background: var(--kin-surface);
-    border: 1px solid var(--kin-border);
-    border-radius: 12px;
-    padding: 13px 15px;
-    min-height: 94px;
-    color: #fafafa;
-    font-size: 0.82rem;
-    line-height: 1.45;
-    font-weight: 450;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--kin-rule-soft);
+    border-radius: 0;
+    padding: 13px 10px 13px 2px;
+    color: rgba(250, 250, 250, 0.9);
+    font-size: 0.86rem;
+    line-height: 1.5;
+    font-weight: 420;
     white-space: normal;
-    transition: background-color 160ms ease, border-color 160ms ease;
+    transition: background-color 150ms ease, padding-left 150ms var(--kin-ease-out);
   }
   @media (hover: hover) and (pointer: fine) {
     div[data-testid="stButton"] button[kind="secondary"]:hover {
-      background: rgba(255, 255, 255, 0.07);
-      border-color: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.04);
+      padding-left: 9px;
       color: #fafafa;
     }
   }
-  div[data-testid="stButton"] button[kind="secondary"]:active {
-    transform: scale(0.985);
-    transition: transform 160ms var(--kin-ease-out);
-  }
   div[data-testid="stButton"] button[kind="secondary"]:focus-visible {
     outline: 2px solid #60a5fa;
-    outline-offset: 2px;
+    outline-offset: -2px;
   }
 
-  /* --- Result ------------------------------------------------------------------ */
-  .kin-verdict {
-    display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px;
-    padding: 16px 20px;
-    background: linear-gradient(100deg, var(--kin-accent-wash), transparent 72%);
-    border: 1px solid var(--kin-accent-edge);
-    border-left: 3px solid var(--kin-accent);
-    border-radius: var(--kin-radius-card);
-    margin-bottom: 14px;
-    animation: kin-rise 220ms var(--kin-ease-out) both;
-  }
-  .kin-verdict-label {
-    font-size: 1.5rem; font-weight: 750; letter-spacing: -0.015em;
-    color: var(--kin-accent); text-transform: capitalize;
-  }
-  .kin-verdict-conf { font-size: 0.9rem; color: var(--kin-text-dim); }
-  .kin-verdict-eyebrow {
-    font-size: 0.72rem; font-weight: 650; color: var(--kin-text-dim);
-    width: 100%; margin-bottom: -4px;
-  }
-
-  .kin-rings {
+  /* --- Readout ------------------------------------------------------------------ */
+  .kin-readout {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 12px;
-  }
-  .kin-ring-card {
-    display: flex; flex-direction: column; align-items: center; gap: 10px;
-    background: var(--kin-surface);
-    border: 1px solid var(--kin-border);
-    border-radius: var(--kin-radius-card);
-    padding: 18px 12px 15px;
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "head ring" "bars ring";
+    gap: 4px 28px;
+    align-items: start;
+    margin-top: 22px;
+    padding: 22px 24px;
+    background: rgba(255, 255, 255, 0.022);
+    border-top: 2px solid var(--kin-accent);
+    border-radius: 2px 2px 10px 10px;
     animation: kin-rise 220ms var(--kin-ease-out) both;
   }
-  .kin-ring-name {
-    font-size: 0.82rem; font-weight: 600; color: #fafafa; text-transform: capitalize;
+  .kin-readout-head { grid-area: head; }
+  .kin-verdict {
+    display: block;
+    font-size: 2.1rem;
+    font-weight: 660;
+    letter-spacing: -0.035em;
+    line-height: 1.1;
+    color: var(--kin-accent);
+    text-transform: capitalize;
+    margin: 7px 0 3px;
+  }
+  .kin-verdict-note { font-size: 0.8rem; color: var(--kin-dim); line-height: 1.5; }
+  .kin-ring-slot { grid-area: ring; }
+
+  /* Runner-up classes: slim bars, so the one ring stays the single loud element. */
+  .kin-bars { grid-area: bars; margin-top: 16px; display: grid; gap: 9px; max-width: 340px; }
+  .kin-bar {
+    display: grid;
+    grid-template-columns: 62px 1fr 48px;
+    align-items: center;
+    gap: 11px;
+    font-size: 0.76rem;
+  }
+  .kin-bar-name { color: var(--kin-dim); text-transform: capitalize; }
+  .kin-bar-track {
+    height: 4px; border-radius: 2px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+  .kin-bar-fill {
+    display: block; height: 100%; border-radius: 2px;
+    transform-origin: left center;
+    animation: kin-bar-grow 500ms var(--kin-ease-out) both;
+  }
+  .kin-bar-val {
+    text-align: right;
+    font-family: var(--kin-mono);
+    font-variant-numeric: tabular-nums;
+    color: rgba(250, 250, 250, 0.82);
   }
 
   @keyframes kin-rise {
-    from { opacity: 0; transform: translateY(8px) scale(0.97); }
-    to   { opacity: 1; transform: translateY(0) scale(1); }
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes kin-bar-grow {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
   }
 
-  .kin-footnote {
-    font-size: 0.78rem; color: var(--kin-text-dim);
-    line-height: 1.6; margin-top: 18px;
-    padding-top: 14px; border-top: 1px solid var(--kin-border);
+  .kin-note {
+    font-size: 0.76rem; color: var(--kin-dim); line-height: 1.6;
+    margin-top: 16px; padding-top: 13px; border-top: 1px solid var(--kin-rule-soft);
   }
-  .kin-footnote a { color: #60a5fa; text-decoration: none; }
-  .kin-footnote a:hover { text-decoration: underline; }
+  .kin-note a { color: rgba(250, 250, 250, 0.82); text-decoration: underline;
+                text-underline-offset: 2px; text-decoration-color: var(--kin-rule); }
+  .kin-note a:hover { text-decoration-color: currentColor; }
+
+  @media (max-width: 640px) {
+    .kin-readout {
+      grid-template-columns: 1fr;
+      grid-template-areas: "head" "ring" "bars";
+      justify-items: start;
+    }
+  }
 
   @media (prefers-reduced-motion: reduce) {
-    .kin-verdict, .kin-ring-card { animation: kin-fade 160ms ease both; }
-    .kin-ring-arc { animation: none !important; }
+    .kin-readout { animation: kin-fade 160ms ease both; }
+    .kin-ring-arc, .kin-bar-fill { animation: none !important; }
     @keyframes kin-fade { from { opacity: 0; } to { opacity: 1; } }
   }
 </style>
 """
 
-
-RING_SIZE = 128
-RING_STROKE = 11
+RING_SIZE = 148
+RING_STROKE = 9
 RING_RADIUS = (RING_SIZE - RING_STROKE) / 2
 RING_CIRCUMFERENCE = 2 * math.pi * RING_RADIUS
 
 
-def rgba(hex_color: str, alpha: float) -> str:
-    """Translucent version of a #rrggbb colour, as an rgba() string.
+def ring_svg(pct: float, color: str, label: str) -> str:
+    """The single large confidence ring for the predicted class.
 
-    Done in Python rather than with CSS color-mix() so the result does not depend on
-    browser support for a relatively recent colour function — if color-mix() were
-    unsupported the whole declaration would be dropped and the verdict card would lose
-    its background and border entirely.
+    Only the winning class gets a ring — the runners-up are slim bars — so the page has
+    one loud element instead of three competing ones.
+
+    The arc draws from empty to its value on mount. `stroke-dashoffset` is also set
+    inline to the *final* value so that under prefers-reduced-motion, where the animation
+    is switched off, the ring still renders at the right position rather than empty.
     """
-    r, g, b = (int(hex_color[i:i + 2], 16) for i in (1, 3, 5))
-    return f"rgba({r}, {g}, {b}, {alpha})"
+    cx = cy = RING_SIZE / 2
+    offset = RING_CIRCUMFERENCE * (1 - pct)
+    return f"""
+    <svg class="kin-ring" width="{RING_SIZE}" height="{RING_SIZE}"
+         viewBox="0 0 {RING_SIZE} {RING_SIZE}" role="img"
+         aria-label="{label}: {pct:.1%} confidence">
+      <circle cx="{cx}" cy="{cy}" r="{RING_RADIUS}" fill="none"
+              stroke="rgba(255,255,255,0.08)" stroke-width="{RING_STROKE}" />
+      <circle class="kin-ring-arc" cx="{cx}" cy="{cy}" r="{RING_RADIUS}" fill="none"
+              stroke="{color}" stroke-width="{RING_STROKE}" stroke-linecap="round"
+              stroke-dasharray="{RING_CIRCUMFERENCE:.2f}"
+              stroke-dashoffset="{offset:.2f}"
+              transform="rotate(-90 {cx} {cy})"
+              style="animation: kin-draw 560ms cubic-bezier(0.23,1,0.32,1) 110ms both;" />
+      <text x="{cx}" y="{cy + 4}" text-anchor="middle" fill="#fafafa"
+            font-size="30" font-weight="600" letter-spacing="-1"
+            font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+            style="font-variant-numeric: tabular-nums;">{pct * 100:.0f}</text>
+      <text x="{cx}" y="{cy + 26}" text-anchor="middle" fill="rgba(250,250,250,0.5)"
+            font-size="10" letter-spacing="1.4"
+            font-family="ui-monospace, SFMono-Regular, Menlo, monospace">PERCENT</text>
+    </svg>
+    """
 
 
-def ring_keyframes(index: int, pct: float) -> str:
-    """The @keyframes rule that draws ring `index` from empty to its value."""
+def ring_keyframes(pct: float) -> str:
     offset = RING_CIRCUMFERENCE * (1 - pct)
     return (
-        f"@keyframes kin-draw-{index} {{"
+        f"@keyframes kin-draw {{"
         f" from {{ stroke-dashoffset: {RING_CIRCUMFERENCE:.2f}; }}"
         f" to {{ stroke-dashoffset: {offset:.2f}; }} }}"
     )
 
 
-def ring_svg(label: str, pct: float, color: str, index: int) -> str:
-    """One circular confidence indicator, as inline SVG inside a card.
-
-    The arc draws from empty to its value on mount (500ms, ease-out, staggered 60ms per
-    card). `stroke-dashoffset` is also set inline to the *final* value so that under
-    prefers-reduced-motion — where the animation is switched off — the ring still renders
-    at the correct position rather than empty.
-    """
-    size = RING_SIZE
-    cx = cy = size / 2
-    offset = RING_CIRCUMFERENCE * (1 - pct)
-    card_delay = 40 * index
-    arc_delay = 120 + 60 * index
+def bar_row(label: str, pct: float, color: str, index: int) -> str:
     return f"""
-    <div class="kin-ring-card" style="animation-delay: {card_delay}ms;">
-      <svg width="{size}" height="{size}" viewBox="0 0 {size} {size}" role="img"
-           aria-label="{label}: {pct:.0%} confidence">
-        <circle cx="{cx}" cy="{cy}" r="{RING_RADIUS}" fill="none"
-                stroke="rgba(255,255,255,0.10)" stroke-width="{RING_STROKE}" />
-        <circle class="kin-ring-arc" cx="{cx}" cy="{cy}" r="{RING_RADIUS}" fill="none"
-                stroke="{color}" stroke-width="{RING_STROKE}" stroke-linecap="round"
-                stroke-dasharray="{RING_CIRCUMFERENCE:.2f}"
-                stroke-dashoffset="{offset:.2f}"
-                transform="rotate(-90 {cx} {cy})"
-                style="animation: kin-draw-{index} 500ms cubic-bezier(0.23,1,0.32,1)
-                       {arc_delay}ms both;" />
-        <text x="{cx}" y="{cy + 9}" text-anchor="middle" fill="#fafafa"
-              font-size="26" font-weight="700"
-              font-family="system-ui, -apple-system, sans-serif">{pct:.0%}</text>
-      </svg>
-      <span class="kin-ring-name">{label}</span>
+    <div class="kin-bar">
+      <span class="kin-bar-name">{label}</span>
+      <span class="kin-bar-track">
+        <span class="kin-bar-fill"
+              style="width: {pct * 100:.1f}%; background: {color};
+                     animation-delay: {200 + 70 * index}ms;"></span>
+      </span>
+      <span class="kin-bar-val">{pct * 100:.1f}%</span>
     </div>
     """
 
@@ -296,6 +341,22 @@ def ring_svg(label: str, pct: float, color: str, index: int) -> str:
 @st.cache_resource(show_spinner=False)
 def load_classifier():
     return pipeline("text-classification", model=MODEL_ID, top_k=None)
+
+
+def embed_html(html: str, height: int = 1) -> None:
+    """Embed a raw HTML/JS snippet, across Streamlit versions.
+
+    st.iframe supersedes st.components.v1.html, which is deprecated and scheduled for
+    removal; fall back to the old call on installs that predate st.iframe. Height
+    defaults to 1 rather than 0 because st.iframe rejects a height of zero — the
+    stylesheet hides the 1px container outright.
+    """
+    if hasattr(st, "iframe"):
+        st.iframe(html, height=height)
+    else:  # pragma: no cover - only on Streamlit versions predating st.iframe
+        import streamlit.components.v1 as components
+
+        components.html(html, height=height)
 
 
 # --- Page --------------------------------------------------------------------------
@@ -306,14 +367,35 @@ st.set_page_config(
 )
 st.markdown(STYLES, unsafe_allow_html=True)
 
+# Kinyarwanda is not in any browser's dictionary, so the native spellchecker underlines
+# essentially every word typed into the box. Streamlit's text_area exposes no spellcheck
+# option, so reach the real <textarea> from a zero-height helper component. The observer
+# re-applies it because Streamlit re-creates the node on rerun.
+embed_html(
+    """
+    <script>
+      const doc = window.parent.document;
+      const disableSpellcheck = () => {
+        doc.querySelectorAll('textarea').forEach((node) => {
+          node.setAttribute('spellcheck', 'false');
+          node.setAttribute('autocorrect', 'off');
+          node.setAttribute('autocapitalize', 'off');
+        });
+      };
+      disableSpellcheck();
+      new MutationObserver(disableSpellcheck)
+        .observe(doc.body, { childList: true, subtree: true });
+    </script>
+    """,
+)
+
 st.markdown(
     """
-    <div class="kin-hero">
+    <div class="kin-head">
       <h1>Kinyarwanda Sentiment Classifier</h1>
-      <p>A fine-tuned AfroXLMR Transformer that labels Kinyarwanda text as
-      <strong>positive</strong>, <strong>negative</strong>, or <strong>neutral</strong>.
-      Trained on the AfriSenti Twitter dataset (Muhammad et al., 2023) — an NLP summative
-      project, not a general-purpose chatbot.</p>
+      <p>A fine-tuned AfroXLMR Transformer that labels Kinyarwanda text as positive,
+      negative, or neutral. Trained on the AfriSenti Twitter corpus (Muhammad et al.,
+      2023) — an NLP summative project, not a general-purpose chatbot.</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -321,11 +403,23 @@ st.markdown(
 
 st.markdown(
     f"""
-    <div class="kin-chips">
-      <span class="kin-chip"><span class="kin-chip-dot"></span>AfroXLMR · fine-tuned</span>
-      <span class="kin-chip">Test accuracy <b>{TEST_ACCURACY}</b></span>
-      <span class="kin-chip">Macro-F1 <b>{TEST_MACRO_F1}</b></span>
-      <span class="kin-chip">on <b>{TEST_SIZE}</b> held-out tweets</span>
+    <div class="kin-metrics">
+      <div class="kin-metric">
+        <span class="kin-metric-val">{TEST_ACCURACY}%</span>
+        <span class="kin-metric-key">Test accuracy</span>
+      </div>
+      <div class="kin-metric">
+        <span class="kin-metric-val">{TEST_MACRO_F1}%</span>
+        <span class="kin-metric-key">Macro F1</span>
+      </div>
+      <div class="kin-metric">
+        <span class="kin-metric-val">{TEST_SIZE}</span>
+        <span class="kin-metric-key">Held-out tweets</span>
+      </div>
+      <div class="kin-metric">
+        <span class="kin-metric-val">3</span>
+        <span class="kin-metric-key">Classes</span>
+      </div>
     </div>
     """,
     unsafe_allow_html=True,
@@ -343,34 +437,30 @@ def _use_example(example_text: str) -> None:
 
 
 st.markdown(
-    '<div class="kin-section-label">Try a real tweet from the test set — '
-    "each one's correct answer is known, so you can check the model</div>",
+    '<div class="kin-eyebrow kin-rowlabel">Samples from the test set · '
+    "known answers</div>",
     unsafe_allow_html=True,
 )
 
-for row_start in (0, 2):
-    cols = st.columns(2, gap="small")
-    for col, example in zip(cols, EXAMPLES[row_start:row_start + 2]):
-        with col:
-            st.button(
-                f"{example['gold'].capitalize()}  ·  “{example['text']}”",
-                key=f"ex-{EXAMPLES.index(example)}",
-                help=example["note"],
-                on_click=_use_example,
-                args=(example["text"],),
-                use_container_width=True,
-            )
+for index, example in enumerate(EXAMPLES):
+    st.button(
+        f":{CLASS_MD_COLOR[example['gold']]}[{example['gold']}]"
+        f"   {example['text']}",
+        key=f"ex-{index}",
+        help=example["note"],
+        on_click=_use_example,
+        args=(example["text"],),
+        use_container_width=True,
+    )
 
 with st.form("classify", border=False):
     text = st.text_area(
         "Kinyarwanda text",
         key="kin_text",
         placeholder="Andika interuro mu Kinyarwanda hano…  (Type a Kinyarwanda sentence here…)",
-        height=110,
+        height=108,
     )
-    submitted = st.form_submit_button(
-        "Classify", type="primary", use_container_width=False
-    )
+    submitted = st.form_submit_button("Classify", type="primary")
 
 if submitted and text.strip():
     if not looks_like_kinyarwanda(text):
@@ -385,63 +475,60 @@ if submitted and text.strip():
     with st.spinner("Classifying…"):
         scores = classifier(text)[0]
 
-    scores_sorted = sorted(scores, key=lambda item: -item["score"])
-    top = scores_sorted[0]
+    ranked = sorted(scores, key=lambda item: -item["score"])
+    top, rest = ranked[0], ranked[1:]
     accent = CLASS_COLORS.get(top["label"], "#60a5fa")
 
     gold = GOLD_BY_TEXT.get(text.strip())
     if gold is None:
-        eyebrow = "Prediction"
+        note = "Free text — no reference label to compare against."
     elif gold == top["label"]:
-        eyebrow = f"Prediction · matches the known label ({gold})"
+        note = f"Matches the known label for this sample ({gold})."
     else:
-        eyebrow = f"Prediction · known label is {gold} — the model got this one wrong"
+        note = f"The known label is {gold} — the model got this sample wrong."
 
-    keyframes = "\n".join(
-        ring_keyframes(index, item["score"])
-        for index, item in enumerate(scores_sorted)
-    )
-    rings = "".join(
-        ring_svg(item["label"], item["score"],
-                 CLASS_COLORS.get(item["label"], "#60a5fa"), index)
-        for index, item in enumerate(scores_sorted)
+    bars = "".join(
+        bar_row(item["label"], item["score"],
+                CLASS_COLORS.get(item["label"], "#60a5fa"), index)
+        for index, item in enumerate(rest)
     )
 
-    # Emitted as its own markdown call rather than inline with the result markup, so the
-    # <style> block never has to survive being parsed alongside sibling elements.
-    st.markdown(f"<style>{keyframes}</style>", unsafe_allow_html=True)
-
+    # Emitted separately so the <style> block never has to survive being parsed
+    # alongside sibling elements.
+    st.markdown(f"<style>{ring_keyframes(top['score'])}</style>",
+                unsafe_allow_html=True)
     st.markdown(
         f"""
-        <div style="--kin-accent: {accent};
-                    --kin-accent-wash: {rgba(accent, 0.13)};
-                    --kin-accent-edge: {rgba(accent, 0.28)};">
-          <div class="kin-verdict">
-            <span class="kin-verdict-eyebrow">{eyebrow}</span>
-            <span class="kin-verdict-label">{top['label']}</span>
-            <span class="kin-verdict-conf">{top['score']:.1%} confidence</span>
+        <div class="kin-readout" style="--kin-accent: {accent};">
+          <div class="kin-readout-head">
+            <span class="kin-eyebrow">Predicted</span>
+            <span class="kin-verdict">{top['label']}</span>
+            <span class="kin-verdict-note">{note}</span>
           </div>
-          <div class="kin-rings">{rings}</div>
+          <div class="kin-ring-slot">
+            {ring_svg(top['score'], accent, top['label'])}
+          </div>
+          <div class="kin-bars">{bars}</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
     st.markdown(
-        "<div class='kin-footnote'>Each ring shows how much probability the model "
-        "assigned to that class — the three always sum to 100%. A low top score means the "
-        "model was genuinely unsure, not that the text is neutral.</div>",
+        "<div class='kin-note'>The three class scores always sum to 100%. A low top "
+        "score means the model was genuinely unsure — not that the text is neutral.</div>",
         unsafe_allow_html=True,
     )
 
 elif submitted:
-    st.info("Enter some Kinyarwanda text, or pick one of the examples above.")
+    st.info("Enter some Kinyarwanda text, or pick one of the samples above.")
 
 st.markdown(
     f"""
-    <div class="kin-footnote">
-      Model: <a href="https://huggingface.co/{MODEL_ID}" target="_blank">{MODEL_ID}</a> ·
-      Data: <a href="https://arxiv.org/abs/2302.08956" target="_blank">AfriSenti</a>
+    <div class="kin-note">
+      Model <a href="https://huggingface.co/{MODEL_ID}" target="_blank">{MODEL_ID}</a>
+      &nbsp;·&nbsp; Data
+      <a href="https://arxiv.org/abs/2302.08956" target="_blank">AfriSenti</a>
       (Muhammad et al., 2023)
     </div>
     """,
